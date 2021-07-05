@@ -183,6 +183,40 @@ class CryptoMath:
         return x
 
     @staticmethod
+    def solve_crt(c, n, mod = True):
+        k = len(c)
+        assert(k == len(n))
+
+        # compute overall modulus N
+        N = 1
+        for i in range(k):
+            N = N * n[i]
+        
+        # compute Zi 
+        z = []
+        for i in range(k):
+            z.append(N // n[i])
+        
+        # compute Yi which is the inverse of Zi in Ni
+        y = []
+        for i in range(k):
+            y.append(CryptoMath.mod_inv(z[i], n[i]))
+        
+        # compute w
+        w = []
+        for i in range(k):
+            w.append(CryptoMath.mod_mul(y[i], z[i], N))
+        
+        # compute the result
+        p = 0
+        for i in range(k):
+            p = p + (w[i] * c[i])
+        
+        if mod:
+            p = p % N
+        return p
+
+    @staticmethod
     def get_primes(n :int) -> []:
         """
             returns :   [(int)] array of primes <= n
