@@ -1,8 +1,9 @@
 import sys
-from typing import Optional
+from typing import Optional, List, Tuple
 from Crypto import Random
 import random
 import math
+from random import randint
 
 class MyError(Exception): 
     
@@ -29,7 +30,7 @@ class Point:
 class CryptoMath:
 
     @staticmethod
-    def get_random_bytes(n :int)    ->  bytes():
+    def get_random_bytes(n :int)    ->  bytes:
         """
             returns :   bytes()  n cryptographically random bytes
         """
@@ -61,7 +62,7 @@ class CryptoMath:
     @staticmethod
     def mod_inv_p(x, p):
         if x % p == 0:
-            raise('x is divisible by p. No modular inverse!')
+            raise Exception('x is divisible by p. No modular inverse!')
         return pow(x, p-2, p)
     
     @staticmethod
@@ -75,7 +76,7 @@ class CryptoMath:
         return x
 
     @staticmethod
-    def egcd(x :int, y :int) -> int:
+    def egcd(x :int, y :int) -> tuple:
         """
             returns :   (int, int, int) : (d, a, b) such that
                 d   :   gcd(x,y)    =   a*x + b*y
@@ -103,7 +104,7 @@ class CryptoMath:
         return (r0, a0, b0)
 
     @staticmethod
-    def mod_inv(x :int, n :int, is_positive: bool = False) -> int:
+    def mod_inv(x :int, n :int, is_positive: bool = False) -> Optional[int]:
         """
             returns :   (int)   :   (y) such that
             (x * y) % n = 1
@@ -115,7 +116,7 @@ class CryptoMath:
         # if a < 0:
         #     return n + a
 
-        if is_positive and a < 0:
+        if a < 0:
             return n + a
         return a
     
@@ -149,7 +150,7 @@ class CryptoMath:
         return False
     
     @staticmethod
-    def crt(a :[int], n :[int]) ->  int:
+    def crt(a : List[int], n : List[int]) ->  int:
         """
             returns :   x (mod M) such that
             x % n[i] = a[i] for each (a[i], n[i])
@@ -217,7 +218,7 @@ class CryptoMath:
         return p
 
     @staticmethod
-    def get_primes(n :int) -> []:
+    def get_primes(n :int) -> List[int]:
         """
             returns :   [(int)] array of primes <= n
                 computed using the sieve method
@@ -431,7 +432,7 @@ class CryptoMath:
         """
         m = n - 1
         h = (g * y) % n
-        def f(x :int, g :int, y :int, n :int, a :int, b :int) -> (int, int, int):
+        def f(x :int, g :int, y :int, n :int, a :int, b :int) -> Tuple[int, int, int]:
             res = x % 3
             if res == 0:
                 return ( (x * g) % n, a + 1, b )
@@ -451,7 +452,7 @@ class CryptoMath:
                 b = (bj - bi) % m
                 b_inv = CryptoMath.mod_inv(b, m)
                 if b_inv is None:
-                    raise('Error: hit corner case in pollards rho')
+                    raise Exception('Error: hit corner case in pollards rho')
                 return (a * b_inv) % m
             
         return None
@@ -501,10 +502,10 @@ class CryptoMath:
                 
                 y0 = y1
         
-        raise('Could not find discrete logarithm')
+        raise Exception('Could not find discrete logarithm')
 
     @staticmethod
-    def pollards_kangaroo_dlog2(g: int, y: int, p: int, a: int, b: int, num_trials: int = 1000) -> int:
+    def pollards_kangaroo_dlog2(g: int, y: int, p: int, a: int, b: int, num_trials: int = 1000) -> Optional[int]:
         """
 
         """
@@ -520,17 +521,19 @@ class CryptoMath:
             print (f"#iteration({i}): k= {k}, {N}")
             
             # start a tame kangaroo
-            xT = 0
+            xT = b + i
             yT = pow(g, b, p)
             for _ in range(N):
-                xT = xT + f(yT, k)
-                yT = yT * int(pow(g, f(yT, k)))
+                jump = f(yT, k)
+                xT = xT + jump
+                yT = yT * int(pow(g, jump))
             
             xW = 0
             yW = y
             while xW < b - a + xT:
-                xW = xW + f(yW, k)
-                yW = yW * int(pow(g, f(yW, k)))
+                jump = f(yW, k)
+                xW = xW + jump
+                yW = yW * int(pow(g, jump))
 
                 if yW == yT:
                     return xT + b - xW
@@ -538,7 +541,9 @@ class CryptoMath:
         return None
 
     @staticmethod
-    def Pollard_kangaroo_serial(public_key, order, generator, modulus, b=2**20):
+    # Pollard Rho Lambda or Pollard Kangaroo for serial computers
+    # http://math.boisestate.edu/~liljanab/Crypto2Spring10/PollardKangaroo.pdf
+    def Pollard_kangaroo_serial(public_key, order, generator, modulus, b=0):
         """ This is the Pollard rho lambda or Pollard Kangaroo algorithm,
         this version is for serial computers (no parallelization).
         it seems like I need to store the first list in a hash table
@@ -574,7 +579,7 @@ class CryptoMath:
 
         # wild kangaroo
         # y = Mod(beta, modulus)
-        y = (y % modulus)
+        y = (beta % modulus)
 
         dy = 0
         i = 0
@@ -594,10 +599,89 @@ class CryptoMath:
 
         # failure
         b = randint(2, order//2)
-        return Pollard_kangaroo_serial(public_key, order, generator, modulus, b)
+        return CryptoMath.Pollard_kangaroo_serial(public_key, order, generator, modulus, b)
 
     @staticmethod
-    def lenstra_ecm_factorization(n: int, b_max: int = 100000, num_iterations = 100) -> int:
+    def pollards_kangaroo_dlog3(g: int, y: int, p: int, a: int, b: int, num_trials: int) -> Optional[int]:
+        """
+            returns :   discrete logarithm of y to base g using pollard's kangaroo algorithm
+                        (discrete logarithm is expected to be in the range (a, b))
+        """
+
+        k = int( math.log2( (b - a) // 2 ) )
+        N = int(pow(2, k + 2)) // k
+
+        print (f'k = {k}, N = {N}, y = {y}, g = {g}, p = {p}')
+        
+        def f(h: int, k: int) -> int:
+            """
+                returns :   integer mapping from group element h to a scalar in the range [1, 2 ** (k - 1)]
+            """
+            return int(pow(2, h % k))
+        
+        for i in range(num_trials):
+            print (f'iteration {i}')
+
+            # start off tame kangaroo
+            xT = b + i
+            yT = pow(g, b, p)
+            print (f'starting tame kangaroo at xT = {xT}, yT = {yT}')
+            for _ in range(N):
+                jump = f(yT, k)
+                xT = xT + jump
+                yT = yT * int(pow(g, jump, p))
+            
+
+            # catch the wild kangaroo
+            dist = 0
+            yW = y
+            while dist < xT - a:
+                jump = f(yW, k)
+                dist = dist + jump
+                yW = yW * int(pow(g, jump, p))
+
+                if yW == yT:
+                    print (f'kangaroos collide')
+                    return xT - dist
+            
+            print (f'wild kangaroo jumped off tame kangaroo')
+        
+        return None
+                
+
+
+    @staticmethod
+    def lenstra_ecm_factorization2(n :int, b_max : int = 100000, num_iterations = 100) -> Optional[int]:
+        """
+            Considering standard weirstrass curve
+                y^2 = x^3 + Ax + B (mod N)
+        """
+        for _ in range(num_iterations):
+            a = randint(1, n - 1)
+            b = randint(1, n - 1)
+            P = Point(a, b)
+
+            A = randint(1, n - 1)
+            B = (b * b - (a * a * a) - (A * a)) % n
+
+            curve = EllipticCurve(A, B, n)
+            Q = P
+            for j in range(2, b_max):
+                try:
+                    Q = curve.scale(Q, j)
+                except MyError as err:
+                    e = int(err.__str__())
+                    d = CryptoMath.gcd(e, n)
+                    if d == n:
+                        break
+                    elif d > 1 and d < n:
+                        return d
+        
+        return None
+
+
+    @staticmethod
+    def lenstra_ecm_factorization(n: int, b_max: int = 100000, num_iterations = 100) -> Optional[int]:
         """
             returns :   (int) factor of n, computed using
                         Lenstra's elliptic curve factorization method
@@ -701,6 +785,8 @@ class EllipticCurve:
         """
             returns inverse of point p on the Elliptic Curve in GF(p)
         """
+        if p == self.O:
+            return self.O
         return Point(p.x, (self.p + (-1 * p.y)) % self.p)
 
 
@@ -784,6 +870,113 @@ class EllipticCurve:
             x = self.add(x, x)
             k = k >> 1
         return result
+
+    
+    def fixed_window_scale(self, P :Point, k :int, w, pad_len_bits : int) -> Point:
+        """
+            computes scalar product k * P and returns a point on the curve
+            using fixed window scalar multiplication
+
+            idea: perform scalar multiplication on a fixed number of bits w
+        """
+        k_bin_str = str(bin(k)[2:])
+
+        num_bits = len(k_bin_str)
+
+        if num_bits > pad_len_bits:
+            raise Exception(f'scalar of size {num_bits} bits is larger than exppected scalar of size {pad_len_bits} bits')
+
+        if num_bits < pad_len_bits:
+            prefix = "0" * (pad_len_bits - num_bits)
+            k_bin_str = prefix + k_bin_str
+
+        num_bits = len(k_bin_str)
+
+        assert(w < num_bits)
+
+        prods = [self.scale(P, i) for i in range(2 ** w)]
+        res = self.O
+        for i in range(0, num_bits - w + 1, w):
+            w_bin = int(k_bin_str[i: i + w], 2)
+            
+            assert(w_bin < len(prods))
+
+            res = self.scale(res, 2 ** w)
+            res = self.add(res, prods[w_bin])
+        
+        return res
+
+    def double_add_always(self, P : Point, k : int) -> Point:
+        """
+            perform double and add always to avoid timing side channel
+        """
+        res = self.O
+        while k > 0:
+            b = k & 1
+            R = self.add(res, P)
+            P = self.add(P, P)
+            res = self.add( self.scale(res, 1 - b) , self.scale(R, b) )
+            k = k >> 1
+
+        return res
+
+    def montgomery_ladder(self, P :Point, k :int, pad_len_bits :int = 128) -> Point:
+        """
+            perform scalar multiplication using the montgomery ladder
+            algorithm
+        """
+        def cswap(b :int, R :Point, S :Point) -> Tuple[Point, Point]:
+            """
+                constant time conditional swap R, S
+            """
+            S_inv = self.__inverse__(S)
+            D = self.scale(self.add(R, S_inv), b)
+            D_inv = self.__inverse__(D)
+            return (
+                self.add(R, D_inv),
+                self.add(S, D)
+            )
+        
+        k_bin_str = bin(k)[2:]
+        num_bits = len(k_bin_str)
+        if num_bits > pad_len_bits:
+            raise Exception('error')
+
+        if num_bits < pad_len_bits:
+            prefix = "0" * (pad_len_bits - num_bits)
+            k_bin_str = prefix + k_bin_str
+        
+        num_bits = len(k_bin_str)
+        
+        P0 = self.O
+        P1 = P
+        for i in range(0, num_bits, 1):
+            b = int(k_bin_str[i], 2)
+            P0, P1 = cswap(b, P0, P1)
+            P1 = self.add(P0, P1)
+            P0 = self.scale(P0, 2)
+            P0, P1 = cswap(b, P0, P1)
+        
+        return P0
+
+
+def test_scalar_multiplication():
+    """
+        test various implekmentations of scalar multiplication
+    """
+    G = Point(182, 85518893674295321206118380980485522083)
+
+    base_order = 29246302889428143187362802287225875743
+    curve_order = 233970423115425145498902418297807005944
+
+    ec = EllipticCurve(-95051, 11279326, 233970423115425145524320034830162017933, curve_order)
+
+    k = random.randint(1, base_order)
+    P1 = ec.scale(G, k)
+    P2 = ec.fixed_window_scale(G, k, 4, 128)
+    P3 = ec.montgomery_ladder(G, k, base_order.bit_length())
+    assert(P1.x == P2.x and P1.y == P2.y and P2.x == P3.x and P2.y == P3.y)
+
                 
 
 if __name__ == "__main__":
@@ -824,21 +1017,24 @@ if __name__ == "__main__":
     # print ("pollards_rho_discrete_log(2, 3, 5): ", CryptoMath.pollards_rho_dlog(2, 13699544328167240935, 16429744134624869189))
     # print ("pollards_rho_discrete_log(2, 124, 65537): ", CryptoMath.pollards_rho_dlog(2, 124, 65537))
     
-    # print ("pollards_kangaroo_discrete_log(2, 124, 65537): ", CryptoMath.pollards_kangaroo_dlog2(2, 124, 65537, 0, 50000))
+    # print ("pollards_rho_discrete_log(2, 124, 65537): ", CryptoMath.pollards_rho_dlog(2, 124, 65537))
 
-    A = -95051
-    B = 11279326
-    p = 233970423115425145524320034830162017933
-    G = Point(182, 85518893674295321206118380980485522083)
-    order = 29246302889428143187362802287225875743
-    test_curve = EllipticCurve(A, B, p, order)   
-    P = test_curve.scale(G, order)
-    
-    assert(P.equals(test_curve.O))
+    # print ('--------------------')
 
-    print ("lenstra_ecm_factorization(602400691612422154516282778947806249229526581): ", CryptoMath.lenstra_ecm_factorization(456))
+    # print ("pollards_kangaroo_discrete_log(2, 124, 65537): ", CryptoMath.pollards_kangaroo_dlog3(2, 124, 65537, 1, 50000, 5))
 
+    # A = -95051
+    # B = 11279326
+    # p = 233970423115425145524320034830162017933
+    # G = Point(182, 85518893674295321206118380980485522083)
+    # order = 29246302889428143187362802287225875743
+    # test_curve = EllipticCurve(A, B, p, order)   
+    # P = test_curve.scale(G, order)
     
-    
-    
-    
+    # assert(P.equals(test_curve.O))
+
+    # print ("lenstra_ecm_factorization(602400691612422154516282778947806249229526581): ", CryptoMath.lenstra_ecm_factorization(456))
+
+    # ans = CryptoMath().Pollard_kangaroo_serial(124, 32, 2, 65537)
+    # print (ans)
+    test_scalar_multiplication()
